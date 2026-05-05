@@ -45,7 +45,7 @@ See `docker-compose.yaml` for complete list of configurable options.
 
 ## 📂 Volumes
 
-- `./rootfs/data/coolify` - Data storage
+- `./volumes/data/coolify` - Data storage
 
 ## 🔍 Logging
 
