@@ -1,0 +1,107 @@
+name: coolify
+x-logging: &default-logging
+  options:
+    max-size: '5m'
+    max-file: '1'
+  driver: json-file
+
+services:
+  app:
+    image: coollabsio/coolify:latest
+    container_name: coolify-app
+    domainname: ${BASE_DOMAIN_NAME:-example.com}
+    hostname: ${BASE_HOST_NAME:-$HOSTNAME}
+    restart: always
+    pull_policy: always
+    logging: *default-logging
+    environment:
+      TZ: ${TZ:-America/New_York}
+      APP_PORT: 8080
+      APP_ENV: production
+      APP_ID: ${APP_ID:-coolify}
+      APP_KEY: ${APP_SECRET_KEY:-replace-with-a-random-32-byte-hex-string}
+      DB_CONNECTION: pgsql
+      DB_HOST: coolify-db
+      DB_PORT: 5432
+      DB_DATABASE: ${DB_CREATE_DATABASE_NAME:-coolify}
+      DB_USERNAME: ${DB_USER_NAME:-coolify}
+      DB_PASSWORD: ${DB_USER_PASS:-replace-with-a-random-password}
+      REDIS_HOST: coolify-redis
+      REDIS_PORT: 6379
+      MAIL_MAILER: smtp
+      MAIL_HOST: ${EMAIL_SERVER_HOST:-172.17.0.1}
+      MAIL_PORT: ${EMAIL_SERVER_PORT:-587}
+      MAIL_USERNAME: ${EMAIL_SERVER_LOGIN_NAME:-}
+      MAIL_PASSWORD: ${EMAIL_SERVER_LOGIN_PASS:-}
+      MAIL_FROM_ADDRESS: ${EMAIL_SERVER_MAIL_FROM:-no-reply@example.com}
+      CONTAINER_NAME: coolify-app
+      HOSTNAME: ${BASE_HOST_NAME:-$HOSTNAME}
+    volumes:
+      - './volumes/data/coolify:/data/coolify'
+      - '/var/run/docker.sock:/var/run/docker.sock'
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    depends_on:
+      coolify-db:
+        condition: service_healthy
+      coolify-redis:
+        condition: service_healthy
+    labels:
+      - 'cloudflare.enable=true'
+      - 'cloudflare.service=http://coolify-app:8080'
+      - 'cloudflare.hostname=${BASE_HOST_NAME:-$HOSTNAME}'
+    networks:
+      - coolify
+      - cloudflare
+
+  coolify-db:
+    image: postgres:latest
+    container_name: coolify-db
+    domainname: ${BASE_DOMAIN_NAME:-example.com}
+    hostname: coolify-db
+    restart: always
+    pull_policy: always
+    logging: *default-logging
+    environment:
+      TZ: ${TZ:-America/New_York}
+      POSTGRES_DB: ${DB_CREATE_DATABASE_NAME:-coolify}
+      POSTGRES_USER: ${DB_USER_NAME:-coolify}
+      POSTGRES_PASSWORD: ${DB_USER_PASS:-replace-with-a-random-password}
+      CONTAINER_NAME: coolify-db
+    volumes:
+      - './volumes/data/db/postgres/coolify:/var/lib/postgresql/data:z'
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - coolify
+
+  coolify-redis:
+    image: redis:alpine
+    container_name: coolify-redis
+    domainname: ${BASE_DOMAIN_NAME:-example.com}
+    hostname: coolify-redis
+    restart: always
+    pull_policy: always
+    logging: *default-logging
+    environment:
+      CONTAINER_NAME: coolify-redis
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    networks:
+      - coolify
+
+networks:
+  coolify:
+    name: coolify
+    external: false
+  cloudflare:
+    external: true
